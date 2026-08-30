@@ -11,17 +11,13 @@ const SenderPage = () => {
   const navigate = useNavigate();
 
   const [user, setUser] = useState<User | null>(null);
-
   const [senders, setSenders] = useState<Sender[]>([]);
   const [loading, setLoading] = useState(true);
-
   const [showForm, setShowForm] = useState(false);
-
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [smtpUser, setSmtpUser] = useState("");
   const [smtpPassword, setSmtpPassword] = useState("");
-
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -52,11 +48,17 @@ const SenderPage = () => {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    if (!user) {
+      setError("User session not found");
+      return;
+    }
+
     try {
       setSaving(true);
       setError("");
 
       await createSender({
+        userId: user.id,
         name,
         email,
         smtpUser,
@@ -67,7 +69,6 @@ const SenderPage = () => {
       setEmail("");
       setSmtpUser("");
       setSmtpPassword("");
-
       setShowForm(false);
 
       await loadSenders();
@@ -96,17 +97,19 @@ const SenderPage = () => {
           Add Sender
         </button>
       </header>
+
       <main className="max-w-[1000px] mx-auto px-8 py-8">
         <h1 className="text-2xl font-semibold">Senders</h1>
-
         <p className="text-sm text-gray-400 mt-1">
           Manage your email sending accounts
         </p>
+
         {error && (
           <div className="mt-5 p-3 bg-red-50 text-red-600 rounded-md text-sm">
             {error}
           </div>
         )}
+
         {loading ? (
           <div className="py-20 text-center text-sm text-gray-400">
             Loading senders...
@@ -114,7 +117,6 @@ const SenderPage = () => {
         ) : senders.length === 0 ? (
           <div className="py-20 text-center">
             <p className="text-gray-500">No senders added yet.</p>
-
             <button
               onClick={() => setShowForm(true)}
               className="mt-5 px-5 py-2 bg-green-600 text-white rounded-full text-sm"
@@ -136,21 +138,19 @@ const SenderPage = () => {
                 className="grid grid-cols-3 px-5 py-4 border-t border-gray-100"
               >
                 <span className="text-sm text-gray-700">{sender.name}</span>
-
                 <span className="text-sm text-gray-600">{sender.email}</span>
-
                 <span className="text-sm text-gray-500">{sender.smtpUser}</span>
               </div>
             ))}
           </div>
         )}
       </main>
+
       {showForm && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center">
           <div className="w-[450px] bg-white rounded-xl p-6 shadow-xl">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-semibold">Add Sender</h2>
-
               <button
                 onClick={() => setShowForm(false)}
                 className="text-gray-400 hover:text-gray-700"
@@ -167,7 +167,6 @@ const SenderPage = () => {
                 required
                 className="w-full h-10 border border-gray-200 rounded-md px-3 text-sm outline-none"
               />
-
               <input
                 type="email"
                 value={email}
@@ -176,7 +175,6 @@ const SenderPage = () => {
                 required
                 className="w-full h-10 border border-gray-200 rounded-md px-3 text-sm outline-none"
               />
-
               <input
                 value={smtpUser}
                 onChange={(e) => setSmtpUser(e.target.value)}
@@ -184,7 +182,6 @@ const SenderPage = () => {
                 required
                 className="w-full h-10 border border-gray-200 rounded-md px-3 text-sm outline-none"
               />
-
               <input
                 type="password"
                 value={smtpPassword}
@@ -193,7 +190,6 @@ const SenderPage = () => {
                 required
                 className="w-full h-10 border border-gray-200 rounded-md px-3 text-sm outline-none"
               />
-
               <button
                 type="submit"
                 disabled={saving}
