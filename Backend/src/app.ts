@@ -15,15 +15,15 @@ import csvRoutes from "./campaign/csv.routes.js";
 
 const app = express();
 
+app.set("trust proxy", 1);
 app.use(express.json());
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: process.env.FRONTEND_URL || "http://localhost:5173",
     credentials: true,
   }),
 );
 
-// session
 app.use(
   session({
     secret: process.env.SESSION_SECRET!,
@@ -31,7 +31,8 @@ app.use(
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 1000 * 60 * 60 * 24,
     },
   }),
@@ -40,7 +41,6 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
-// routes
 app.use("/api/auth", authRoutes);
 app.use("/api/campaign", compaignRoutes);
 app.use("/api/sender", senderRoutes);
@@ -48,7 +48,6 @@ app.use("/api/emailJob", emailJobRoutes);
 app.use("/api/campaign/csv", csvRoutes);
 
 app.get("/", (req, res) => {
-  //   res.send("Welocme");
   res.status(200).json({
     success: true,
     message: "App is Running",
