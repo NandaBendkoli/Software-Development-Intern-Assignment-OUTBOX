@@ -3,6 +3,7 @@ import cors from "cors";
 import session from "express-session";
 import passport from "./auth/passport.js";
 import env from "dotenv";
+
 env.config();
 
 import "./queue/redis.connection.js";
@@ -16,7 +17,9 @@ import csvRoutes from "./campaign/csv.routes.js";
 const app = express();
 
 app.set("trust proxy", 1);
+
 app.use(express.json());
+
 app.use(
   cors({
     origin: process.env.FRONTEND_URL || "http://localhost:5173",
