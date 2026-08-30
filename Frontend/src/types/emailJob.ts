@@ -8,6 +8,7 @@ export interface EmailJob {
 
   campaign?: {
     subject: string;
+    body: string;
     status: "ACTIVE" | "COMPLETED" | "CANCELLED" | "PAUSED";
   };
 }
