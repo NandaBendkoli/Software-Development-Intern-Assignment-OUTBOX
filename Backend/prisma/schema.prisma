@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id              String           @id @default(cuid())
+  googleId        String           @unique
+  name            String
+  email           String           @unique
+  avtar           String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  campaigns       Campaign[]
+  senders         Sender[]
+  slackConnection SlackConnection?
+}
+
+model Sender {
+  id           String     @id @default(cuid())
+  userId       String
+  name         String
+  email        String
+  smtpUser     String
+  smtpPassword String
+  createdAt    DateTime   @default(now())
+  updateAt     DateTime   @updatedAt
+  campaigns    Campaign[]
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Campaign {
+  id           String         @id @default(cuid())
+  userId       String
+  senderId     String
+  subject      String
+  body         String
+  startAt      DateTime
+  delaySeconds Int
+  hourlyLimit  Int
+  status       Campaignstatus @default(ACTIVE)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  sender       Sender         @relation(fields: [senderId], references: [id])
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailJobs    EmailJob[]
+
+  @@index([userId])
+  @@index([senderId])
+  @@index([startAt])
+}
+
+model EmailJob {
+  id             String      @id @default(cuid())
+  campaignId     String
+  recipient      String
+  scheduledAt    DateTime
+  status         EmailStatus @default(SCHEDULED)
+  sentAt         DateTime?
+  attempts       Int         @default(0)
+  messageId      String?
+  errorMessage   String?
+  idempotancyKey String      @unique
+  createdAt      DateTime    @default(now())
+  updateAt       DateTime    @updatedAt
+  campaign       Campaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([scheduledAt])
+  @@index([status])
+  @@index([recipient])
+}
+
+model SlackConnection {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  teamId      String
+  teamName    String?
+  accessToken String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum EmailStatus {
+  SCHEDULED
+  PROCESSING
+  SENT
+  FAILED
+}
+
+enum Campaignstatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  PAUSED
+}
