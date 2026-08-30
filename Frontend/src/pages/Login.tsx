@@ -1,6 +1,6 @@
 const Login = () => {
   const loginWithGoogle = () => {
-    window.location.href = "http://localhost:8900/api/auth/google";
+    window.location.href = "https://reachinbox-backend1-1d5j.onrender.com/api/auth/google";
   };
 
   return (
