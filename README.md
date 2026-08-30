@@ -427,3 +427,414 @@ npm run dev
 Runs:
 
 React application
+
+
+How Email Scheduling Works
+
+When a campaign is created, it contains:
+
+startAt
+delaySeconds
+hourlyLimit
+
+For every recipient, an EmailJob is created.
+
+The scheduled time is calculated based on the campaign start time and configured delay.
+
+For example:
+
+startAt = 10:00:00
+delaySeconds = 10
+
+For multiple recipients:
+
+Recipient 1 → 10:00:00
+Recipient 2 → 10:00:10
+Recipient 3 → 10:00:20
+Recipient 4 → 10:00:30
+
+The jobs are added to BullMQ with the required delay.
+
+This prevents all emails from being sent simultaneously.
+
+💾 Persistence on Restart
+
+Persistence is handled using PostgreSQL and Redis/BullMQ.
+
+EmailJobs are stored in PostgreSQL before they are processed.
+
+Therefore, the application does not rely only on JavaScript memory for scheduled email information.
+
+The general flow is:
+
+Create EmailJob
+      ↓
+Persist EmailJob in PostgreSQL
+      ↓
+Add job to BullMQ
+      ↓
+Redis stores queue state
+      ↓
+Worker processes job
+
+If the API server or worker is restarted, persisted database and queue information is still available.
+
+This allows future scheduled jobs to continue being processed instead of being lost from application memory.
+
+🚦 Rate Limiting
+
+Campaign-level hourly rate limiting is implemented using Redis.
+
+Each campaign maintains a Redis counter.
+
+Conceptually:
+
+campaign:<campaignId>:hourly-limit
+
+When an email is processed:
+
+Redis INCR
+
+increments the campaign counter.
+
+The counter is given a one-hour expiration window.
+
+For example, if:
+
+hourlyLimit = 2
+
+then:
+
+Email 1 → Allowed
+Email 2 → Allowed
+Email 3 → Limit reached
+
+The third email is prevented from being sent while the campaign has reached its configured hourly limit.
+
+This prevents a campaign from exceeding its configured sending rate.
+
+⚡ Concurrency
+
+The BullMQ worker is configured with concurrency.
+
+Example:
+
+concurrency: 5
+
+This means the worker can process multiple jobs concurrently instead of waiting for every previous job to finish.
+
+Conceptually:
+
+Job 1 ─┐
+Job 2 ─┤
+Job 3 ─┤──→ Worker
+Job 4 ─┤
+Job 5 ─┘
+
+This improves throughput for bulk email processing while still allowing campaign-level rate limiting.
+
+🔁 Retry Mechanism
+
+Email jobs use BullMQ retry support.
+
+A job can be configured with multiple attempts.
+
+For example:
+
+Attempt 1 → Failed
+Attempt 2 → Failed
+Attempt 3 → Success
+
+Exponential backoff can be used between retry attempts.
+
+If all attempts fail, the EmailJob is marked as:
+
+FAILED
+
+and the error message is persisted in PostgreSQL.
+
+🔐 Idempotency
+
+Email jobs use an idempotency key to help prevent accidental duplicate job creation.
+
+The goal of idempotency is:
+
+Repeating the same logical operation should not unintentionally result in duplicate email processing.
+
+EmailJob records contain an idempotency-related identifier so that duplicate operations can be detected/controlled.
+
+This is particularly useful when clients retry API requests or when bulk operations are submitted more than once.
+
+📊 Campaign Statistics
+
+The backend provides campaign statistics based on EmailJob status.
+
+Example:
+
+{
+  "total": 13,
+  "scheduled": 11,
+  "processing": 0,
+  "sent": 1,
+  "failed": 1
+}
+
+These statistics are calculated from the persisted EmailJob records in PostgreSQL.
+
+The dashboard can use these values to display campaign progress.
+
+⏸️ Campaign Controls
+
+Campaigns support:
+
+ACTIVE
+PAUSED
+COMPLETED
+CANCELLED
+
+Available operations:
+
+Pause
+Resume
+Cancel
+Pause
+
+Temporarily stops processing of jobs belonging to the campaign.
+
+Resume
+
+Changes the campaign back to active processing.
+
+Cancel
+
+Marks the campaign as cancelled and prevents further processing of cancelled campaign jobs.
+
+📤 CSV Bulk Upload
+
+Recipients can be uploaded using a CSV file.
+
+Expected CSV format:
+
+email
+user1@example.com
+user2@example.com
+user3@example.com
+
+The backend:
+
+Receives the uploaded CSV.
+Parses the file.
+Extracts recipient email addresses.
+Creates EmailJobs.
+Calculates scheduled times.
+Adds the jobs to BullMQ.
+The worker processes them asynchronously.
+
+Flow:
+
+CSV
+ ↓
+CSV Parser
+ ↓
+Recipients
+ ↓
+EmailJobs
+ ↓
+BullMQ
+ ↓
+Redis
+ ↓
+Worker
+ ↓
+SMTP
+🔑 Authentication Flow
+
+Google OAuth authentication follows this flow:
+
+User
+ ↓
+Frontend
+ ↓
+GET /api/auth/google
+ ↓
+Google OAuth
+ ↓
+Google Callback
+ ↓
+Passport Google Strategy
+ ↓
+Find/Create User
+ ↓
+Serialize User
+ ↓
+Session
+ ↓
+Dashboard
+
+The application stores the authenticated user's information in PostgreSQL.
+
+The dashboard displays:
+
+Name
+Email
+Avatar
+🔓 Logout Flow
+
+Logout destroys the authenticated session.
+
+Frontend
+ ↓
+GET /api/auth/logout
+ ↓
+Passport logout
+ ↓
+Session destroyed
+ ↓
+Cookie cleared
+ ↓
+User logged out
+🔌 Important API Endpoints
+Authentication
+GET /api/auth/google
+
+Starts Google authentication.
+
+GET /api/auth/google/callback
+
+Google OAuth callback.
+
+GET /api/auth/getUser
+
+Returns the currently authenticated user.
+
+GET /api/auth/logout
+
+Logs the user out.
+
+Sender
+POST /api/sender/create
+
+Creates a sender.
+
+GET /api/sender/getAll
+
+Returns all senders.
+
+Campaign
+POST /api/campaign/create
+
+Creates a campaign.
+
+GET /api/campaign/getAll
+
+Returns all campaigns.
+
+GET /api/campaign/getOne/:id
+
+Returns one campaign.
+
+PATCH /api/campaign/pause/:id
+
+Pauses a campaign.
+
+PATCH /api/campaign/resume/:id
+
+Resumes a campaign.
+
+PATCH /api/campaign/cancel/:id
+
+Cancels a campaign.
+
+GET /api/campaign/stats/:id
+
+Returns campaign statistics.
+
+CSV
+POST /api/campaign/csv/upload
+
+Uploads a CSV file containing recipients.
+
+Form-data:
+
+campaignId → Text
+file        → File
+EmailJob
+POST /api/emailJob/create
+
+Creates an email job.
+
+GET /api/emailJob/getAll
+
+Returns all email jobs.
+
+GET /api/emailJob/getOne/:id
+
+Returns one email job.
+
+
+how to test it 
+
+Testing the Email Flow
+
+A simple test can be performed using Postman.
+
+Step 1 - Login
+
+Open:
+
+http://localhost:8900/api/auth/google
+
+Authenticate with Google.
+
+Step 2 - Create Sender
+POST /api/sender/create
+
+Example:
+
+{
+  "userId": "USER_ID",
+  "name": "Test Sender",
+  "email": "test@example.com",
+  "smtpUser": "ETHEREAL_USERNAME",
+  "smtpPassword": "ETHEREAL_PASSWORD"
+}
+Step 3 - Create Campaign
+POST /api/campaign/create
+
+Example:
+
+{
+  "userId": "USER_ID",
+  "senderId": "SENDER_ID",
+  "subject": "ReachInbox Test",
+  "body": "Testing scheduled email delivery.",
+  "startAt": "2026-08-30T10:00:00.000Z",
+  "delaySeconds": 10,
+  "hourlyLimit": 100
+}
+Step 4 - Create EmailJob
+POST /api/emailJob/create
+
+Example:
+
+{
+  "campaignId": "CAMPAIGN_ID",
+  "recipient": "recipient@example.com"
+}
+Step 5 - Worker Processing
+
+The worker terminal should show:
+
+🚀 Email Worker started
+✅ Redis connected
+📨 Processing EmailJob: ...
+🔄 Attempt 1/3
+
+After successful delivery:
+
+✅ Email sent: ...
+✅ Job completed: ...
+
+The EmailJob is then updated to:
+
+SENT
