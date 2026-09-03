@@ -1,5 +1,8 @@
+import env from "dotenv";
+env.config();
+
 export const getLogin = (req: any, res: any) => {
-  res.redirect("http://localhost:5173/dashboard");
+  res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/dashboard`);
 };
 
 export const getUser = async (req: any, res: any) => {
@@ -36,6 +39,7 @@ export const logoutUser = async (req: any, res: any, next: any) => {
     });
   });
 };
+
 export const failedAuthentication = (req: any, res: any) => {
   return res.status(401).json({
     success: false,
